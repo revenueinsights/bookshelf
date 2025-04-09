@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: bookshelf-postgres2
+    restart: always
+    ports:
+      - "5440:5432"
+    environment:
+      POSTGRES_USER: bookshelf
+      POSTGRES_PASSWORD: bookshelf_password
+      POSTGRES_DB: bookshelf_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bookshelf"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Uncomment if you want a DB admin tool
+  # pgadmin:
+  #   image: dpage/pgadmin4
+  #   container_name: bookshelf-pgadmin
+  #   restart: always
+  #   ports:
+  #     - "5050:80"
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@bookshelf.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #   depends_on:
+  #     - postgres
+
+volumes:
+  postgres_data:
