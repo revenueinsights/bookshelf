@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-  "vercel-build": "npm install --legacy-peer-deps && npm run build",
+    "vercel-build": "npm install --legacy-peer-deps && npm run build",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
