@@ -32,6 +32,30 @@ enum TimeFrame {
   YEAR
 }
 
+// New enums for BookScouter-style functionality
+enum BookCondition {
+  NEW
+  LIKE_NEW
+  VERY_GOOD
+  GOOD
+  ACCEPTABLE
+  POOR
+}
+
+enum VendorType {
+  BUYBACK
+  MARKETPLACE
+  AUCTION
+  DIRECT
+}
+
+enum QuoteStatus {
+  ACTIVE
+  EXPIRED
+  UNAVAILABLE
+  PROCESSING
+}
+
 // Models
 model User {
   id           String        @id @default(cuid())
@@ -49,11 +73,8 @@ model User {
   batches      Batch[]
   userSettings UserSettings?
   analytics    Analytics[] @relation("UserAnalyticsPrimary")
-  analyticsRelation Analytics[] @relation("UserAnalyticsSecondary")
   batchSnapshots BatchSnapshot[] @relation("BatchSnapshots")
   priceUpdateJobs PriceUpdateJob[] @relation("UserPriceUpdateJobs")
-  priceUpdateJob  PriceUpdateJob?  @relation("UserPriceUpdateJobSingle")
-  priceUpdateJobRelation PriceUpdateJob[] @relation("UserPriceUpdateJobMultiple")
 }   
 
 model UserSettings {
@@ -68,43 +89,54 @@ model UserSettings {
   updatedAt          DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userPriceUpdateJob User? @relation("UserPriceUpdateJob")
 }
 
 model Book {
-  id                String    @id @default(cuid())
+  id                String        @id @default(cuid())
   isbn              String
   isbn13            String?
   title             String?
   authors           String[]
   notes             String?
-  currentPrice      Decimal   @default(0) @db.Decimal(10, 2)
-  purchasePrice     Decimal?  @db.Decimal(10, 2)
-  condition         String?
+  currentPrice      Decimal       @default(0) @db.Decimal(10, 2)
+  purchasePrice     Decimal?      @db.Decimal(10, 2)
+  condition         BookCondition @default(GOOD)
   lastPriceUpdate   DateTime?
   userId            String
   batchId           String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  bookMetadataId    String?       // Link to enhanced book metadata
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
   
   // Added fields from second migration
-  firstTracked      DateTime  @default(now())
-  historicalHigh    Decimal   @default(0) @db.Decimal(10, 2)
-  percentOfHigh     Decimal   @default(0) @db.Decimal(6, 2)
-  priceRank         PriceRank @default(RED)
-  amazonPrice       Decimal?  @db.Decimal(10, 2)
+  firstTracked      DateTime      @default(now())
+  historicalHigh    Decimal       @default(0) @db.Decimal(10, 2)
+  percentOfHigh     Decimal       @default(0) @db.Decimal(6, 2)
+  priceRank         PriceRank     @default(RED)
+  amazonPrice       Decimal?      @db.Decimal(10, 2)
   bestVendorName    String?
   priceHistory      Json?
   amazonPriceHistory Json?
+  
+  // New BookScouter-style fields
+  bestQuotePrice    Decimal?      @db.Decimal(10, 2)
+  bestQuoteVendor   String?
+  totalQuotes       Int           @default(0)
+  lastQuoteUpdate   DateTime?
+  sellRecommendation String?      // "SELL_NOW", "WAIT", "HOLD"
 
   // Relations
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  batch Batch? @relation(fields: [batchId], references: [id])
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batch        Batch?        @relation(fields: [batchId], references: [id])
+  bookMetadata BookMetadata? @relation(fields: [bookMetadataId], references: [id])
 
   // Indexes
   @@index([userId])
   @@index([batchId])
   @@index([priceRank])
+  @@index([bookMetadataId])
+  @@index([condition])
+  @@index([bestQuotePrice])
 }
 
 model Batch {
@@ -150,17 +182,10 @@ model PriceUpdateJob {
   createdAt      DateTime  @default(now())
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userPriceUpdateJob User? @relation("UserPriceUpdateJob", fields: [userPriceUpdateJobid], references: [id])
-userPriceUpdateJobid String?
+  user User @relation("UserPriceUpdateJobs", fields: [userId], references: [id], onDelete: Cascade)
 
   // Indexes
   @@index([nextRun, status])
-  User User[] @relation("UserPriceUpdateJobMultiple")
-  userPriceUpdateJobs User[] @relation("UserPriceUpdateJobMultiple")
-  // Removed duplicate field definition
-  // Removed duplicate field definition
-  User[] @relation("UserPriceUpdateJobSingle")
 }
 
 // New models for analytics
@@ -185,15 +210,12 @@ model Analytics {
   createdAt           DateTime  @default(now())
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  analyticsRelationUser User? @relation("UserAnalyticsSecondary", fields: [analyticsRelationUserid], references: [id])
-analyticsRelationUserid String?
+  user User @relation("UserAnalyticsPrimary", fields: [userId], references: [id], onDelete: Cascade)
 
   // Indexes
   @@index([userId, timeFrame, periodKey])
   @@index([date])
   @@unique([userId, timeFrame, periodKey])
-User User[] @relation("UserAnalyticsPrimary")
 }
 
 model BatchSnapshot {
@@ -221,4 +243,124 @@ model BatchSnapshot {
   @@index([batchId, timeFrame, periodKey])
   @@index([date])
   @@unique([batchId, timeFrame, periodKey])
+}
+
+// New models for BookScouter-style functionality
+
+model Vendor {
+  id              String      @id @default(cuid())
+  name            String      @unique
+  displayName     String
+  website         String?
+  logoUrl         String?
+  type            VendorType
+  isActive        Boolean     @default(true)
+  averageRating   Decimal?    @db.Decimal(3, 2) // 0.00 to 5.00
+  totalReviews    Int         @default(0)
+  processingTime  String?     // e.g., "1-3 business days"
+  shippingInfo    String?
+  paymentMethods  String[]    // e.g., ["PayPal", "Check", "Direct Deposit"]
+  minOrderValue   Decimal?    @db.Decimal(10, 2)
+  maxOrderValue   Decimal?    @db.Decimal(10, 2)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  priceQuotes     PriceQuote[]
+  
+  // Indexes
+  @@index([type, isActive])
+  @@index([name])
+}
+
+model BookMetadata {
+  id              String    @id @default(cuid())
+  isbn            String    @unique
+  isbn13          String?   @unique
+  title           String
+  subtitle        String?
+  authors         String[]
+  publisher       String?
+  publishedDate   String?   // Sometimes just year, sometimes full date
+  pageCount       Int?
+  language        String?   @default("en")
+  categories      String[]
+  description     String?
+  imageUrl        String?
+  thumbnailUrl    String?
+  averageRating   Decimal?  @db.Decimal(3, 2)
+  ratingsCount    Int?
+  retailPrice     Decimal?  @db.Decimal(10, 2)
+  format          String?   // Hardcover, Paperback, etc.
+  dimensions      String?
+  weight          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  books           Book[]
+  priceQuotes     PriceQuote[]
+  marketData      MarketData[]
+
+  // Indexes
+  @@index([isbn])
+  @@index([isbn13])
+  @@index([title])
+  @@index([authors])
+}
+
+model PriceQuote {
+  id              String        @id @default(cuid())
+  bookMetadataId  String
+  vendorId        String
+  condition       BookCondition
+  price           Decimal       @db.Decimal(10, 2)
+  originalPrice   Decimal?      @db.Decimal(10, 2) // For tracking price changes
+  status          QuoteStatus   @default(ACTIVE)
+  quotedAt        DateTime      @default(now())
+  expiresAt       DateTime?
+  lastChecked     DateTime      @default(now())
+  isHighestPrice  Boolean       @default(false)
+  notes           String?       // Vendor-specific notes
+  shippingCost    Decimal?      @db.Decimal(10, 2)
+  processingFee   Decimal?      @db.Decimal(10, 2)
+  totalPayout     Decimal?      @db.Decimal(10, 2) // price - fees
+  estimatedPayout String?       // e.g., "3-5 business days"
+  
+  // Relations
+  bookMetadata    BookMetadata  @relation(fields: [bookMetadataId], references: [id], onDelete: Cascade)
+  vendor          Vendor        @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([bookMetadataId, condition])
+  @@index([vendorId, status])
+  @@index([price])
+  @@index([quotedAt])
+  @@index([isHighestPrice])
+  @@unique([bookMetadataId, vendorId, condition])
+}
+
+model MarketData {
+  id              String       @id @default(cuid())
+  bookMetadataId  String
+  condition       BookCondition
+  averagePrice    Decimal      @db.Decimal(10, 2)
+  highestPrice    Decimal      @db.Decimal(10, 2)
+  lowestPrice     Decimal      @db.Decimal(10, 2)
+  priceRange      Decimal      @db.Decimal(10, 2) // highest - lowest
+  vendorCount     Int          // Number of vendors offering this book
+  lastUpdated     DateTime     @default(now())
+  priceHistory    Json?        // Historical price data
+  demandScore     Decimal?     @db.Decimal(5, 2) // 0-100 demand indicator
+  popularityRank  Int?         // Rank among similar books
+  
+  // Relations
+  bookMetadata    BookMetadata @relation(fields: [bookMetadataId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([bookMetadataId, condition])
+  @@index([averagePrice])
+  @@index([highestPrice])
+  @@index([lastUpdated])
+  @@unique([bookMetadataId, condition])
 }

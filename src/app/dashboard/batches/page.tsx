@@ -48,7 +48,8 @@ export default async function BatchesPage({ searchParams }: BatchesPageProps) {
     return <div>Unauthorized</div>;
   }
 
-  const searchQuery = searchParams?.query || '';
+  const resolvedSearchParams = await searchParams;
+  const searchQuery = resolvedSearchParams?.query || '';
   const batches = await getBatches(userId, searchQuery);
 
   return (

@@ -256,6 +256,18 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ISBN is required' }, { status: 400 });
     }
 
+    // Convert condition string to enum value
+    const conditionMap: { [key: string]: string } = {
+      'New': 'NEW',
+      'Like New': 'LIKE_NEW',
+      'Very Good': 'VERY_GOOD',
+      'Good': 'GOOD',
+      'Acceptable': 'ACCEPTABLE',
+      'Poor': 'POOR'
+    };
+    
+    const mappedCondition = condition && conditionMap[condition] ? conditionMap[condition] : null;
+
     // Clean ISBN
     const cleanIsbn = isbn.trim().replace(/-/g, '');
     
@@ -464,7 +476,7 @@ export async function PUT(request: NextRequest) {
           priceRank,
           bestVendorName,
           purchasePrice: purchasePrice !== undefined ? new Decimal(purchasePrice) : existingBook.purchasePrice,
-          condition: condition !== undefined ? condition : existingBook.condition,
+          condition: mappedCondition !== null ? mappedCondition as any : existingBook.condition,
           notes: notes !== undefined ? notes : existingBook.notes,
           priceHistory: JSON.stringify(priceHistory),
           amazonPriceHistory: amazonPriceHistory.length > 0 
@@ -491,7 +503,7 @@ export async function PUT(request: NextRequest) {
           priceRank,
           bestVendorName,
           purchasePrice: purchasePrice !== undefined ? new Decimal(purchasePrice) : null,
-          condition: condition || null,
+          condition: mappedCondition as any || 'GOOD',
           notes: notes || null,
           priceHistory: JSON.stringify(priceHistory),
           amazonPriceHistory: amazonPriceHistory.length > 0 ? JSON.stringify(amazonPriceHistory) : undefined,

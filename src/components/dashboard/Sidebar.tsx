@@ -12,7 +12,9 @@ import {
   QrCode, 
   Settings, 
   Menu, 
-  X 
+  X,
+  Brain,
+  Zap
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -27,10 +29,12 @@ const Sidebar = () => {
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Batches', href: '/dashboard/batches', icon: Package },
     { name: 'Books', href: '/dashboard/books', icon: Book },
+    { name: 'Book Manager', href: '/dashboard/books/manage', icon: Settings },
     { name: 'Scanner', href: '/dashboard/scanner', icon: QrCode },
     { name: 'Batch Scanner', href: '/dashboard/batch-scanner', icon: QrCode },
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart2 },
-    
+    { name: 'AI Insights', href: '/dashboard/ai-insights', icon: Brain },
+    { name: 'Pro Tools', href: '/dashboard/pro-tools', icon: Zap },
   ];
 
   const isActive = (path: string) => {
