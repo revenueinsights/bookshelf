@@ -5,9 +5,12 @@
   "scripts": {
     "vercel-build": "npm install --legacy-peer-deps && npm run build",
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && prisma db push && next build",
     "start": "next start",
     "lint": "next lint",
+    "db:migrate": "prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts"
   },
   "prisma": {

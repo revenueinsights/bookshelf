@@ -48,12 +48,17 @@ export async function POST(request: NextRequest) {
       },
     });
     
-    // Create default user settings
-    await prisma.userSettings.create({
-      data: {
-        userId: newUser.id,
-      },
-    });
+    // Try to create default user settings, but don't fail if it doesn't work
+    try {
+      await prisma.userSettings.create({
+        data: {
+          userId: newUser.id,
+        },
+      });
+    } catch (settingsError) {
+      console.warn('Could not create user settings:', settingsError);
+      // Continue without failing - settings can be created later
+    }
     
     // Return success but exclude password from response
     const { password: _, ...userWithoutPassword } = newUser;
@@ -67,8 +72,25 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Error during registration:', error);
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes('unique constraint')) {
+        return NextResponse.json(
+          { error: 'A user with this email already exists' },
+          { status: 409 }
+        );
+      }
+      if (error.message.includes('UserSettings')) {
+        return NextResponse.json(
+          { error: 'Database schema issue. Please contact support.' },
+          { status: 500 }
+        );
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'An error occurred during registration' },
+      { error: 'An error occurred during registration. Please try again.' },
       { status: 500 }
     );
   }
