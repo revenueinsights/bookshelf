@@ -174,9 +174,9 @@ async function getAnalyticsData(userId: string, timeFrame: TimeFrame = 'MONTH') 
 export default async function AnalyticsPage({
   searchParams
 }: {
-  searchParams: {
+  searchParams: Promise<{
     timeFrame?: string;
-  };
+  }>;
 }) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
@@ -185,8 +185,9 @@ export default async function AnalyticsPage({
     return <div>Unauthorized</div>;
   }
 
-  // Get the timeFrame parameter, default to MONTH - no need to await searchParams
-  const timeFrame = (searchParams.timeFrame || 'MONTH') as TimeFrame;
+  // Await searchParams in Next.js 15
+  const params = await searchParams;
+  const timeFrame = (params.timeFrame || 'MONTH') as TimeFrame;
   
   const { analytics, batches, batchComparison } = await getAnalyticsData(userId, timeFrame);
   
