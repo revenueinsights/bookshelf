@@ -75,6 +75,10 @@ model User {
   analytics    Analytics[] @relation("UserAnalyticsPrimary")
   batchSnapshots BatchSnapshot[] @relation("BatchSnapshots")
   priceUpdateJobs PriceUpdateJob[] @relation("UserPriceUpdateJobs")
+  priceAlerts  PriceAlert[]
+  notifications Notification[]
+  smartRecommendations SmartRecommendation[]
+  userPreferences UserPreferences?
 }   
 
 model UserSettings {
@@ -129,6 +133,8 @@ model Book {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   batch        Batch?        @relation(fields: [batchId], references: [id])
   bookMetadata BookMetadata? @relation(fields: [bookMetadataId], references: [id])
+  priceAlerts  PriceAlert[]
+  smartRecommendations SmartRecommendation[]
 
   // Indexes
   @@index([userId])
@@ -363,4 +369,224 @@ model MarketData {
   @@index([highestPrice])
   @@index([lastUpdated])
   @@unique([bookMetadataId, condition])
+}
+
+// Price Alert System
+model PriceAlert {
+  id              String        @id @default(cuid())
+  userId          String
+  bookId          String?       // Optional - can be for specific book or general market alerts
+  isbn            String?       // For alerts on books not yet in inventory
+  alertType       AlertType
+  targetPrice     Decimal       @db.Decimal(10, 2)
+  currentPrice    Decimal?      @db.Decimal(10, 2)
+  condition       AlertCondition @default(ABOVE)
+  isActive        Boolean       @default(true)
+  triggered       Boolean       @default(false)
+  triggerCount    Int           @default(0)
+  lastTriggered   DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  expiresAt       DateTime?     // Optional expiration
+  
+  // Alert settings
+  emailNotification Boolean     @default(true)
+  pushNotification  Boolean     @default(false)
+  frequency         AlertFrequency @default(IMMEDIATE)
+  
+  // Relations
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book            Book?         @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  notifications   Notification[]
+
+  // Indexes
+  @@index([userId, isActive])
+  @@index([bookId])
+  @@index([isbn])
+  @@index([targetPrice])
+  @@index([alertType])
+}
+
+model Notification {
+  id              String          @id @default(cuid())
+  userId          String
+  priceAlertId    String?
+  type            NotificationType
+  title           String
+  message         String
+  data            Json?           // Additional data (book info, prices, etc.)
+  read            Boolean         @default(false)
+  readAt          DateTime?
+  createdAt       DateTime        @default(now())
+  
+  // Relations
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  priceAlert      PriceAlert?     @relation(fields: [priceAlertId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([userId, read])
+  @@index([priceAlertId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// Market Intelligence
+model MarketTrend {
+  id              String      @id @default(cuid())
+  isbn            String
+  category        String?     // Book category/genre
+  trendType       TrendType
+  trendStrength   Decimal     @db.Decimal(5, 2) // 0-100 confidence score
+  priceDirection  PriceDirection
+  predictedPrice  Decimal?    @db.Decimal(10, 2)
+  timeframe       String      // "1d", "7d", "30d", etc.
+  confidence      Decimal     @db.Decimal(5, 2) // 0-100
+  dataPoints      Json        // Historical data used for analysis
+  createdAt       DateTime    @default(now())
+  validUntil      DateTime
+  
+  // Indexes
+  @@index([isbn])
+  @@index([category])
+  @@index([trendType])
+  @@index([createdAt])
+  @@index([validUntil])
+}
+
+// Smart Recommendations
+model SmartRecommendation {
+  id              String            @id @default(cuid())
+  userId          String
+  bookId          String?
+  isbn            String?
+  type            RecommendationType
+  priority        RecommendationPriority @default(MEDIUM)
+  title           String
+  description     String
+  reasoning       String            // AI explanation
+  actionItems     Json              // Suggested actions
+  confidence      Decimal           @db.Decimal(5, 2) // 0-100
+  potentialValue  Decimal?          @db.Decimal(10, 2) // Estimated value impact
+  dismissed       Boolean           @default(false)
+  dismissedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  expiresAt       DateTime?
+  
+  // Relations
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book            Book?             @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([userId, dismissed])
+  @@index([bookId])
+  @@index([type, priority])
+  @@index([createdAt])
+}
+
+// Enhanced User Settings
+model UserPreferences {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  
+  // Alert Preferences
+  enablePriceAlerts     Boolean   @default(true)
+  enableMarketAlerts    Boolean   @default(true)
+  enableAIInsights      Boolean   @default(true)
+  alertFrequency        AlertFrequency @default(IMMEDIATE)
+  
+  // Notification Preferences
+  emailNotifications    Boolean   @default(true)
+  pushNotifications     Boolean   @default(false)
+  smsNotifications      Boolean   @default(false)
+  
+  // Analytics Preferences
+  defaultTimeframe      String    @default("30d")
+  showAdvancedMetrics   Boolean   @default(false)
+  enablePredictive      Boolean   @default(true)
+  
+  // Scanning Preferences
+  autoAddToInventory    Boolean   @default(false)
+  defaultBatchId        String?
+  preferredCondition    BookCondition @default(GOOD)
+  
+  // Market Intelligence
+  riskTolerance         RiskLevel @default(MEDIUM)
+  investmentHorizon     String    @default("medium") // short, medium, long
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  // Relations
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Enums for new features
+enum AlertType {
+  PRICE_TARGET
+  PRICE_DROP
+  PRICE_SPIKE
+  MARKET_TREND
+  INVENTORY_LOW
+  PROFIT_OPPORTUNITY
+  COMPETITOR_ALERT
+}
+
+enum AlertCondition {
+  ABOVE
+  BELOW
+  EQUALS
+  PERCENTAGE_CHANGE
+}
+
+enum AlertFrequency {
+  IMMEDIATE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum NotificationType {
+  PRICE_ALERT
+  MARKET_UPDATE
+  RECOMMENDATION
+  SYSTEM
+  BATCH_COMPLETE
+  ERROR
+}
+
+enum TrendType {
+  PRICE_TREND
+  DEMAND_TREND
+  SUPPLY_TREND
+  SEASONAL_TREND
+  MARKET_SENTIMENT
+}
+
+enum PriceDirection {
+  RISING
+  FALLING
+  STABLE
+  VOLATILE
+}
+
+enum RecommendationType {
+  SELL_NOW
+  HOLD_LONGER
+  BUY_MORE
+  PRICE_ADJUSTMENT
+  MARKET_TIMING
+  INVENTORY_OPTIMIZATION
+}
+
+enum RecommendationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
 }

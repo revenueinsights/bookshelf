@@ -10,8 +10,8 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
-    // Enable server actions for better performance
-    serverActions: true,
+    // Server actions are now stable and enabled by default in Next.js 15
+    // Removing deprecated serverActions configuration
   },
 };
 

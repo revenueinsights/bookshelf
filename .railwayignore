@@ -1,0 +1,17 @@
+# Only ignore development files
+.next/
+node_modules/
+.env.local
+.env.development
+
+# Documentation 
+*.md
+!README.md
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db 
