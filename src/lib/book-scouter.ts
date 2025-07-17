@@ -231,6 +231,7 @@ async function makeBookScouterRequest(
 export async function fetchBookPrice(isbn: string, userId?: string): Promise<any> {
   try {
     const url = `${SELL_PRICES_URL}/${isbn}`;
+    console.log(`📡 Fetching price for ISBN: ${isbn}`);
     const data = await makeBookScouterRequest(url, {}, userId);
 
     // Extract relevant data
@@ -241,10 +242,23 @@ export async function fetchBookPrice(isbn: string, userId?: string): Promise<any
       .filter((offer: any) => offer.price > 0)
       .sort((a: any, b: any) => b.price - a.price); // Sort by price (highest first)
     
+    console.log(`📊 ISBN ${isbn}: Found ${validVendors.length} valid offers out of ${data.prices?.length || 0} total`);
+    
+    // Log all prices for debugging
+    if (data.prices && data.prices.length > 0) {
+      const pricesSummary = data.prices.map((offer: any) => ({
+        vendor: offer.vendor.name,
+        price: offer.price
+      }));
+      console.log(`💰 Price summary for ${isbn}:`, pricesSummary);
+    }
+    
     const bestVendor = validVendors.length > 0 ? validVendors[0] : null;
     const currentPrice = bestVendor ? bestVendor.price : 0;
     const amazonPrice = book.amazonLowestPrice || null;
     const bestVendorName = bestVendor ? bestVendor.vendor.name : null;
+    
+    console.log(`✅ ISBN ${isbn}: Current price $${currentPrice}, Amazon $${amazonPrice}, Best vendor: ${bestVendorName || 'None'}`);
     
     // Check if current price equals Amazon price
     const priceEqualsAmazon = amazonPrice !== null && currentPrice === amazonPrice;
