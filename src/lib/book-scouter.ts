@@ -24,6 +24,27 @@ const AUTH_URL = `${API_BASE_URL}/auth`;
 const SELL_PRICES_URL = `${API_BASE_URL}/prices/sell`;
 const HISTORIC_WEEKLY_URL = `${API_BASE_URL}/historic/sell/weekly`;
 
+// Rate limiting
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 2000; // 2 seconds between requests to reduce rate limiting
+
+/**
+ * Add rate limiting to prevent overwhelming the API
+ */
+async function rateLimitedRequest(requestFn: () => Promise<any>): Promise<any> {
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+  
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+    console.log(`⏱️  Rate limiting: waiting ${waitTime}ms`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+  
+  lastRequestTime = Date.now();
+  return requestFn();
+}
+
 // Standard headers for API requests
 const getStandardHeaders = (token?: string) => {
   const headers: Record<string, string> = {
@@ -138,7 +159,8 @@ async function makeBookScouterRequest(
   userId?: string,
   retryOnAuth = true
 ): Promise<any> {
-  try {
+  return rateLimitedRequest(async () => {
+    try {
     const token = await getValidToken(userId);
     const headers = {
       ...getStandardHeaders(token),
@@ -166,19 +188,41 @@ async function makeBookScouterRequest(
         });
       }
 
-      // Retry the request with the new token
+      // Retry the request with the new token (with rate limiting)
+      return makeBookScouterRequest(url, options, userId, false);
+    }
+
+    // Handle rate limiting
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('Retry-After');
+      const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 10000; // Use Retry-After header or default 10 seconds
+      console.log(`⏱️  Rate limited by API, waiting ${waitTime/1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      // Don't retry auth, but do retry the request once
       return makeBookScouterRequest(url, options, userId, false);
     }
 
     if (!response.ok) {
-      throw new Error(`BookScouter API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ BookScouter API error:', response.status, response.statusText, errorText);
+      
+      // Handle specific error cases
+      if (response.status === 404) {
+        throw new Error(`Book not found: ${url}`);
+      } else if (response.status >= 500) {
+        throw new Error(`BookScouter server error: ${response.status} - Please try again later`);
+      } else {
+        throw new Error(`BookScouter API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
     }
 
     return response.json();
   } catch (error) {
-    console.error(`Error making BookScouter request to ${url}:`, error);
+    console.error(`❌ Error making BookScouter request to ${url}:`, error);
     throw error;
-  }
+    }
+  });
 }
 
 /**
