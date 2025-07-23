@@ -76,8 +76,8 @@ const BatchScanResults: React.FC<BatchScanResultsProps> = ({
           </tr>
         </thead>
         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-          {results.map((result) => (
-            <tr key={result.isbn} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+          {results.map((result, index) => (
+            <tr key={`${result.isbn}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
               <td className="px-3 py-4 whitespace-nowrap">
                 <input
                   type="checkbox"
