@@ -29,6 +29,10 @@ interface BookData {
     id: string;
     name: string;
   } | null;
+  bookMetadata?: {
+    thumbnailUrl?: string | null;
+    imageUrl?: string | null;
+  } | null;
 }
 
 interface FormData {
@@ -46,6 +50,10 @@ export default function BookManagerPage() {
   const [selectedBook, setSelectedBook] = useState<BookData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
+  const [isSearchingGoogle, setIsSearchingGoogle] = useState(false);
+  const [googleSearchResults, setGoogleSearchResults] = useState<any[]>([]);
+  const [googleSearchQuery, setGoogleSearchQuery] = useState('');
   
   // Form state - similar to Python Tkinter variables
   const [formData, setFormData] = useState<FormData>({
@@ -82,6 +90,32 @@ export default function BookManagerPage() {
       toast.error('Error loading books');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Fetch metadata for books without images
+  const fetchBookMetadata = async () => {
+    setIsFetchingMetadata(true);
+    try {
+      const response = await fetch('/api/books/fetch-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(data.message);
+        // Reload books to show updated metadata
+        await loadBooks();
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to fetch metadata');
+      }
+    } catch (error) {
+      toast.error('Error fetching metadata');
+    } finally {
+      setIsFetchingMetadata(false);
     }
   };
 
@@ -240,6 +274,88 @@ export default function BookManagerPage() {
     loadBooks();
   };
 
+  // Search Google Books API
+  const searchGoogleBooks = async () => {
+    if (!googleSearchQuery.trim()) {
+      toast.error('Please enter a search query');
+      return;
+    }
+
+    setIsSearchingGoogle(true);
+    try {
+      const response = await fetch('/api/books/search-google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: googleSearchQuery })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setGoogleSearchResults(data.books || []);
+        if (data.books.length === 0) {
+          toast.error('No books found for your search');
+        }
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to search Google Books');
+      }
+    } catch (error) {
+      toast.error('Error searching Google Books');
+    } finally {
+      setIsSearchingGoogle(false);
+    }
+  };
+
+  // Add book from Google search results
+  const addBookFromGoogle = async (bookData: any) => {
+    try {
+      // Create a comprehensive book data object
+      const bookPayload: any = {
+        title: bookData.title,
+        author: bookData.authors?.join(', ') || 'Unknown Author',
+        isbn: bookData.isbn || null,
+        notes: `Added from Google Books search. ${bookData.description ? `Description: ${bookData.description.substring(0, 200)}...` : ''}`
+      };
+
+      // If we have an ISBN, try to get pricing data first
+      if (bookData.isbn) {
+        try {
+          const priceResponse = await fetch('/api/books/price-lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isbn: bookData.isbn })
+          });
+          
+          if (priceResponse.ok) {
+            const pricingData = await priceResponse.json();
+            // Add pricing data to the payload
+            bookPayload.pricingData = pricingData;
+          }
+        } catch (error) {
+          console.log('Could not fetch pricing data, proceeding with basic book data');
+        }
+      }
+
+      const response = await fetch('/api/books', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bookPayload)
+      });
+
+      if (response.ok) {
+        const newBook = await response.json();
+        setBooks(prev => [newBook, ...prev]);
+        setGoogleSearchResults([]);
+        setGoogleSearchQuery('');
+        toast.success('Book added successfully from Google Books!');
+      } else {
+        toast.error('Failed to add book');
+      }
+    } catch (error) {
+      toast.error('Error adding book');
+    }
+  };
+
   useEffect(() => {
     if (session) {
       loadBooks();
@@ -279,7 +395,7 @@ export default function BookManagerPage() {
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  disabled={selectedBook && !isEditing}
+                  disabled={!!selectedBook && !isEditing}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-600"
                   placeholder="Enter book title"
                 />
@@ -294,7 +410,7 @@ export default function BookManagerPage() {
                   type="text"
                   value={formData.author}
                   onChange={(e) => setFormData(prev => ({ ...prev, author: e.target.value }))}
-                  disabled={selectedBook && !isEditing}
+                  disabled={!!selectedBook && !isEditing}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-600"
                   placeholder="Enter author name"
                 />
@@ -309,7 +425,7 @@ export default function BookManagerPage() {
                   type="text"
                   value={formData.year}
                   onChange={(e) => setFormData(prev => ({ ...prev, year: e.target.value }))}
-                  disabled={selectedBook && !isEditing}
+                  disabled={!!selectedBook && !isEditing}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-600"
                   placeholder="Enter year"
                 />
@@ -324,7 +440,7 @@ export default function BookManagerPage() {
                   type="text"
                   value={formData.isbn}
                   onChange={(e) => setFormData(prev => ({ ...prev, isbn: e.target.value }))}
-                  disabled={selectedBook && !isEditing}
+                  disabled={!!selectedBook && !isEditing}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-600"
                   placeholder="Enter ISBN"
                 />
@@ -338,7 +454,7 @@ export default function BookManagerPage() {
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  disabled={selectedBook && !isEditing}
+                  disabled={!!selectedBook && !isEditing}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-600"
                   placeholder="Enter notes"
@@ -355,7 +471,7 @@ export default function BookManagerPage() {
                   step="0.01"
                   value={formData.purchasePrice}
                   onChange={(e) => setFormData(prev => ({ ...prev, purchasePrice: e.target.value }))}
-                  disabled={selectedBook && !isEditing}
+                  disabled={!!selectedBook && !isEditing}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-600"
                   placeholder="Enter purchase price"
                 />
@@ -478,6 +594,13 @@ export default function BookManagerPage() {
               >
                 Clear Search
               </button>
+              <button
+                onClick={fetchBookMetadata}
+                disabled={isFetchingMetadata}
+                className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+              >
+                {isFetchingMetadata ? 'Fetching...' : 'Fetch Book Images'}
+              </button>
             </div>
           </div>
         </div>
@@ -509,23 +632,43 @@ export default function BookManagerPage() {
                       }`}
                     >
                       <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-medium text-gray-900 dark:text-white">
-                            {book.title}
-                          </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            by {book.authors.join(', ')}
-                          </p>
-                          {book.isbn && (
-                            <p className="text-xs text-gray-500 dark:text-gray-500">
-                              ISBN: {book.isbn}
+                        <div className="flex items-start space-x-3">
+                          {/* Book Image */}
+                          <div className="flex-shrink-0">
+                            {book.bookMetadata?.thumbnailUrl || book.bookMetadata?.imageUrl ? (
+                              <img
+                                src={book.bookMetadata.thumbnailUrl || book.bookMetadata.imageUrl || ''}
+                                alt={book.title}
+                                className="w-12 h-16 object-cover rounded border border-gray-200 dark:border-gray-600"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-12 h-16 bg-gray-200 dark:bg-gray-600 rounded border border-gray-200 dark:border-gray-600 flex items-center justify-center">
+                                <Book className="w-6 h-6 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
+                          {/* Book Details */}
+                          <div className="flex-1">
+                            <h3 className="font-medium text-gray-900 dark:text-white">
+                              {book.title}
+                            </h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              by {book.authors.join(', ')}
                             </p>
-                          )}
-                          {book.purchasePrice && (
-                            <p className="text-xs text-green-600 dark:text-green-400">
-                              ${Number(book.purchasePrice).toFixed(2)}
-                            </p>
-                          )}
+                            {book.isbn && (
+                              <p className="text-xs text-gray-500 dark:text-gray-500">
+                                ISBN: {book.isbn}
+                              </p>
+                            )}
+                            {book.purchasePrice && (
+                              <p className="text-xs text-green-600 dark:text-green-400">
+                                ${Number(book.purchasePrice).toFixed(2)}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-500">
                           {new Date(book.createdAt).toLocaleDateString()}
@@ -537,6 +680,78 @@ export default function BookManagerPage() {
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Full-width Google Books Search Section */}
+      <div className="mt-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+            Search Google Books
+          </h2>
+          
+          <div className="flex space-x-4 mb-6">
+            <input
+              type="text"
+              value={googleSearchQuery}
+              onChange={(e) => setGoogleSearchQuery(e.target.value)}
+              placeholder="Search by title, author, or ISBN"
+              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              onKeyPress={(e) => e.key === 'Enter' && searchGoogleBooks()}
+            />
+            <button
+              onClick={searchGoogleBooks}
+              disabled={isSearchingGoogle}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
+            >
+              {isSearchingGoogle ? 'Searching...' : 'Search Google Books'}
+            </button>
+          </div>
+          
+          {/* Google Search Results */}
+          {googleSearchResults.length > 0 && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-4">
+                Search Results ({googleSearchResults.length})
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                {googleSearchResults.map((book, index) => (
+                  <div key={index} className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-lg transition-shadow">
+                    <div className="flex flex-col items-center text-center">
+                      {book.thumbnailUrl ? (
+                        <img 
+                          src={book.thumbnailUrl} 
+                          alt={book.title}
+                          className="w-24 h-32 object-cover rounded-md shadow-sm mb-4"
+                        />
+                      ) : (
+                        <div className="w-24 h-32 bg-gray-200 dark:bg-gray-600 rounded-md flex items-center justify-center mb-4">
+                          <Book className="w-10 h-10 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="w-full">
+                        <h4 className="font-medium text-gray-900 dark:text-white text-sm mb-2 line-clamp-2">
+                          {book.title}
+                        </h4>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 line-clamp-1">
+                          by {book.authors?.join(', ') || 'Unknown Author'}
+                        </p>
+                        {book.isbn && (
+                          <p className="text-xs text-gray-500 mb-3">ISBN: {book.isbn}</p>
+                        )}
+                        <button
+                          onClick={() => addBookFromGoogle(book)}
+                          className="w-full px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors font-medium"
+                        >
+                          Add to Inventory
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

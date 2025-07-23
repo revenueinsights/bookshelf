@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/db';
 import { BookCondition, PriceRank } from '@prisma/client';
+import { fetchAndStoreBookMetadata } from '@/lib/book-metadata';
 
 // GET - Fetch all books or search books
 export async function GET(request: NextRequest) {
@@ -19,6 +20,12 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'updatedAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
     
+    // Additional filter parameters
+    const batchId = searchParams.get('batchId') || '';
+    const priceRank = searchParams.get('priceRank') || '';
+    const minPrice = searchParams.get('minPrice') || '';
+    const maxPrice = searchParams.get('maxPrice') || '';
+
     // Search parameters from Bookstore-Manager
     const title = searchParams.get('title') || '';
     const author = searchParams.get('author') || '';
@@ -80,6 +87,39 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Apply batch filter
+    if (batchId) {
+      if (batchId === 'none' || batchId === 'null') {
+        whereClause.batchId = null;
+      } else {
+        whereClause.batchId = batchId;
+      }
+    }
+
+    // Apply price rank filter
+    if (priceRank) {
+      const rankValues = priceRank.split(',').map(r => r.trim().toUpperCase());
+      if (rankValues.length > 1) {
+        // @ts-ignore
+        whereClause.priceRank = { in: rankValues };
+      } else {
+        // @ts-ignore
+        whereClause.priceRank = rankValues[0];
+      }
+    }
+
+    // Apply min/max price filters
+    if (minPrice || maxPrice) {
+      // @ts-ignore
+      whereClause.currentPrice = {};
+      if (minPrice && !isNaN(parseFloat(minPrice))) {
+        whereClause.currentPrice.gte = parseFloat(minPrice);
+      }
+      if (maxPrice && !isNaN(parseFloat(maxPrice))) {
+        whereClause.currentPrice.lte = parseFloat(maxPrice);
+      }
+    }
+
     // Get total count for pagination
     const totalCount = await prisma.book.count({ where: whereClause });
 
@@ -94,6 +134,12 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true
+          }
+        },
+        bookMetadata: {
+          select: {
+            thumbnailUrl: true,
+            imageUrl: true,
           }
         }
       }
@@ -126,7 +172,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, author, year, isbn, isbn13, notes, purchasePrice, condition, batchId } = body;
+    const { title, author, year, isbn, isbn13, notes, purchasePrice, condition, batchId, pricingData } = body;
 
     // Convert condition string to enum value
     const conditionMap: { [key: string]: string } = {
@@ -140,13 +186,20 @@ export async function POST(request: NextRequest) {
     
     const mappedCondition = condition && conditionMap[condition] ? conditionMap[condition] : 'GOOD';
 
-    // Validation
     if (!title || !author) {
       return NextResponse.json(
         { error: 'Title and author are required' },
         { status: 400 }
       );
     }
+
+    // If we have pricing data, use it; otherwise use defaults
+    const currentPrice = pricingData?.currentPrice ? parseFloat(pricingData.currentPrice) : 0;
+    const historicalHigh = pricingData?.historicalHigh ? parseFloat(pricingData.historicalHigh) : 0;
+    const percentOfHigh = pricingData?.percentOfHigh ? parseFloat(pricingData.percentOfHigh) : 0;
+    const priceRank = pricingData?.priceRank || 'YELLOW';
+    const bestVendorName = pricingData?.bestVendorName || null;
+    const amazonPrice = pricingData?.amazonPrice ? parseFloat(pricingData.amazonPrice) : null;
 
     // Create the book
     const book = await prisma.book.create({
@@ -158,9 +211,18 @@ export async function POST(request: NextRequest) {
         notes: notes?.trim() || null,
         purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
         condition: mappedCondition as any,
-        priceRank: PriceRank.YELLOW, // Default
-        userId: session.user.id,
-        batchId: batchId || null,
+        priceRank: priceRank as any,
+        currentPrice: currentPrice,
+        historicalHigh: historicalHigh,
+        percentOfHigh: percentOfHigh,
+        bestVendorName: bestVendorName,
+        amazonPrice: amazonPrice,
+        user: {
+          connect: { id: session.user.id }
+        },
+        batch: batchId ? {
+          connect: { id: batchId }
+        } : undefined,
         firstTracked: new Date(),
         lastPriceUpdate: new Date()
       },
@@ -173,6 +235,23 @@ export async function POST(request: NextRequest) {
         }
       }
     });
+
+    // Try to fetch and store book metadata if ISBN is provided
+    if (isbn?.trim()) {
+      try {
+        const metadata = await fetchAndStoreBookMetadata(isbn.trim());
+        if (metadata) {
+          // Update the book with metadata reference
+          await prisma.book.update({
+            where: { id: book.id },
+            data: { bookMetadataId: metadata.id }
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching book metadata:', error);
+        // Don't fail the book creation if metadata fetch fails
+      }
+    }
 
     return NextResponse.json(book, { status: 201 });
   } catch (error) {
@@ -236,7 +315,7 @@ export async function PUT(request: NextRequest) {
         isbn13: isbn13?.trim() || existingBook.isbn13,
         notes: notes?.trim() || existingBook.notes,
         purchasePrice: purchasePrice !== undefined ? parseFloat(purchasePrice) : existingBook.purchasePrice,
-        condition: mappedCondition || existingBook.condition,
+        condition: (mappedCondition as any) || existingBook.condition,
         batchId: batchId !== undefined ? batchId : existingBook.batchId,
         updatedAt: new Date()
       },

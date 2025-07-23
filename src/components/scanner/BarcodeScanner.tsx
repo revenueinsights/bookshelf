@@ -22,10 +22,12 @@ interface ScannerSettings {
   torchMode: boolean;
   scanDelay: number;
   formats: string[];
+  autoStop: boolean;
 }
 
 const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onDetected, onCancel }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -39,6 +41,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onDetected, onCancel })
     torchMode: false,
     scanDelay: 500,
     formats: ['EAN_13', 'EAN_8', 'UPC_A', 'UPC_E', 'ISBN_10', 'ISBN_13'],
+    autoStop: false,
   });
   const [showSettings, setShowSettings] = useState(false);
   const [scanHistory, setScanHistory] = useState<string[]>([]);
@@ -269,6 +272,15 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onDetected, onCancel })
       console.error('Error starting camera:', error);
       setCameraError('Failed to start camera. Please check permissions.');
       setScanning(false);
+    }
+  };
+
+  const stopScanning = async () => {
+    setScanning(false);
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
     }
   };
 

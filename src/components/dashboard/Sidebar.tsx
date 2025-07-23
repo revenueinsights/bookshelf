@@ -35,6 +35,7 @@ const Sidebar = () => {
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart2 },
     { name: 'AI Insights', href: '/dashboard/ai-insights', icon: Brain },
     { name: 'Pro Tools', href: '/dashboard/pro-tools', icon: Zap },
+    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
 
   const isActive = (path: string) => {
