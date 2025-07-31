@@ -8,6 +8,7 @@ import IsbnInput from '@/components/scanner/IsbnInput';
 import BarcodeScanner from '@/components/scanner/BarcodeScanner';
 import PriceRankBadge from '@/components/ui/PriceRankBadge';
 import PriceHistoryButton from '@/components/books/PriceHistoryButton';
+import { useRouter } from 'next/navigation';
 
 interface BookData {
   isbn: string;
@@ -54,6 +55,8 @@ export default function ScannerPage() {
   const [condition, setCondition] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [showAdditionalFields, setShowAdditionalFields] = useState(false);
+
+  const router = useRouter();
 
   // Fetch batches on component mount
   useEffect(() => {
@@ -194,6 +197,9 @@ export default function ScannerPage() {
       setCondition('');
       setNotes('');
       setShowAdditionalFields(false);
+
+      // Navigate to the inventory page after successful addition
+      router.push('/dashboard/books');
     } catch (err) {
       console.error('Error adding book:', err);
       setError(err instanceof Error ? err.message : 'Failed to add book. Please try again.');

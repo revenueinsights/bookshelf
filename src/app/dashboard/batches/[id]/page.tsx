@@ -44,6 +44,8 @@ async function getBatchWithBooks(batchId: string, userId: string) {
       historicalHigh: parseFloat(book.historicalHigh.toString()),
       percentOfHigh: parseFloat(book.percentOfHigh.toString()),
       purchasePrice: book.purchasePrice ? parseFloat(book.purchasePrice.toString()) : null,
+      amazonPrice: book.amazonPrice ? parseFloat(book.amazonPrice.toString()) : null,
+      bestQuotePrice: book.bestQuotePrice ? parseFloat(book.bestQuotePrice.toString()) : null,
     })),
     createdAt: batch.createdAt.toISOString(),
     updatedAt: batch.updatedAt.toISOString(),
@@ -51,7 +53,9 @@ async function getBatchWithBooks(batchId: string, userId: string) {
   };
 }
 
-export default async function BatchDetailPage({ params }: BatchDetailPageProps) {
+export default async function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
@@ -59,7 +63,7 @@ export default async function BatchDetailPage({ params }: BatchDetailPageProps) 
     return <div>Unauthorized</div>;
   }
 
-  const batch = await getBatchWithBooks(params.id, userId);
+  const batch = await getBatchWithBooks(id, userId);
 
   if (!batch) {
     notFound();

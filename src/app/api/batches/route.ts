@@ -6,34 +6,44 @@ import { prisma } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 GET /api/batches - Starting request');
     const session = await getServerSession(authOptions);
+    console.log('📋 Session:', { user: session?.user, hasUser: !!session?.user });
     
     if (!session?.user) {
+      console.log('❌ No session user found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('query') || '';
+    console.log('🔍 Search query:', query);
     
     // First try to find the user by email if available
     let user;
     if (session.user.email) {
+      console.log('👤 Looking up user by email:', session.user.email);
       user = await prisma.user.findUnique({
         where: { email: session.user.email }
       });
+      console.log('👤 User found by email:', !!user);
     }
     
     // If user not found by email and id is available, try by id
     if (!user && session.user.id) {
+      console.log('👤 Looking up user by ID:', session.user.id);
       user = await prisma.user.findUnique({
         where: { id: session.user.id }
       });
+      console.log('👤 User found by ID:', !!user);
     }
     
     if (!user) {
+      console.log('❌ User not found in database');
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
+    console.log('✅ User found, ID:', user.id);
     let whereClause: any = { userId: user.id };
     
     // Add search filter if query is provided
@@ -44,6 +54,7 @@ export async function GET(request: NextRequest) {
       ];
     }
     
+    console.log('🔍 Fetching batches with where clause:', whereClause);
     const batches = await prisma.batch.findMany({
       where: whereClause,
       orderBy: { updatedAt: 'desc' },
@@ -54,6 +65,7 @@ export async function GET(request: NextRequest) {
       },
     });
     
+    console.log('📦 Found batches:', batches.length);
     return NextResponse.json(batches);
   } catch (error) {
     console.error('Error fetching batches:', error);

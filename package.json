@@ -3,8 +3,11 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
+    "predev": "prisma generate",
+    "prebuild": "prisma generate",
     "vercel-build": "npm install --legacy-peer-deps && npm run build",
-    "dev": "next dev",
+    "dev": "npm run clean && next dev",
+    "clean": "rimraf .next",
     "build": "next build",
     "start": "npx prisma db push --accept-data-loss --force-reset && next start",
     "start:railway": "./start.sh",
@@ -60,6 +63,7 @@
     "postcss": "^8",
     "prisma": "^6.6.0",
     "tsx": "^4.19.4",
+    "rimraf": "^5.0.5",
     "typescript": "^5"
   }
 }

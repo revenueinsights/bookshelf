@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { 
   BookOpen, 
@@ -14,7 +15,9 @@ import {
   Trash2,
   Check,
   AlertCircle,
-  Loader2
+  Loader2,
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 import PriceRankBadge from '@/components/ui/PriceRankBadge';
 import ExportBooksButton from '@/components/books/ExportBooksButton';
@@ -37,6 +40,10 @@ interface Book {
   batch: {
     id: string;
     name: string;
+  } | null;
+  bookMetadata?: {
+    thumbnailUrl?: string | null;
+    imageUrl?: string | null;
   } | null;
 }
 
@@ -273,14 +280,27 @@ export default function BookInventoryPage() {
   // Format date
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never';
-    
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    return new Date(dateString).toLocaleDateString();
   };
-  
+
+  const refreshBookPrices = async (bookId: string) => {
+    try {
+      const response = await fetch(`/api/books/${bookId}/refresh-prices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        toast.success('Prices refreshed successfully!');
+        fetchBooks(); // Refresh the books list
+      } else {
+        toast.error('Failed to refresh prices');
+      }
+    } catch (error) {
+      toast.error('Error refreshing prices');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
@@ -571,6 +591,9 @@ export default function BookInventoryPage() {
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Last Updated
                   </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -589,8 +612,30 @@ export default function BookInventoryPage() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-md">
-                          <BookOpen className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                        <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden">
+                          {/* Prefer stored metadata image; fallback to OpenLibrary cover; else icon */}
+                          {book.bookMetadata?.thumbnailUrl || book.bookMetadata?.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={book.bookMetadata.thumbnailUrl || book.bookMetadata.imageUrl || ''}
+                              alt={book.title || 'Book cover'}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (book.isbn13 || book.isbn ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={`https://covers.openlibrary.org/b/isbn/${book.isbn13 || book.isbn}-S.jpg`}
+                              alt="Book cover"
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.onerror = null;
+                                target.src = '';
+                              }}
+                            />
+                          ) : (
+                            <BookOpen className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                          ))}
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
@@ -642,6 +687,24 @@ export default function BookInventoryPage() {
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(book.lastPriceUpdate)}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => router.push(`/dashboard/books/${book.id}`)}
+                          className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                          title="View Details"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => refreshBookPrices(book.id)}
+                          className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                          title="Refresh Prices"
+                        >
+                          <RefreshCw className="h-5 w-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
