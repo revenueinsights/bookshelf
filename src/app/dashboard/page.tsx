@@ -71,11 +71,9 @@ async function getDashboardData(userId: string) {
 export default async function DashboardHomePage() {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
-  
   if (!userId) {
     return <div>Unauthorized</div>;
   }
-  
   const {
     booksCount,
     batchesCount,
@@ -85,72 +83,34 @@ export default async function DashboardHomePage() {
     totalValue,
     recentBatches
   } = await getDashboardData(userId);
-  
+
   return (
-    <div className="space-y-6">
-      <DashboardHeader
-        title="Dashboard"
-        description="Welcome to your BookShelf analytics dashboard"
-      />
-      
-      <DashboardStats
-        booksCount={booksCount}
-        batchesCount={batchesCount}
-        greenCount={greenCount}
-        yellowCount={yellowCount}
-        redCount={redCount}
-        totalValue={totalValue}
-      />
-      
-      {booksCount === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Get Started</h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Link
-              href="/dashboard/scanner"
-              className="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              <div className="h-12 w-12 bg-blue-100 dark:bg-blue-800 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-300 mr-4">
-                <QrCode className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-medium">Scan Books</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Scan barcodes to add books and check prices
-                </p>
-              </div>
-            </Link>
-            
-            <Link
-              href="/dashboard/batches/create"
-              className="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              <div className="h-12 w-12 bg-green-100 dark:bg-green-800 rounded-lg flex items-center justify-center text-green-600 dark:text-green-300 mr-4">
-                <Package className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-medium">Create a Batch</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Organize your books into collections
-                </p>
-              </div>
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <DashboardHeader title="Dashboard" />
+        <DashboardStats 
+          booksCount={booksCount}
+          batchesCount={batchesCount}
+          greenCount={greenCount}
+          yellowCount={yellowCount}
+          redCount={redCount}
+          totalValue={totalValue}
+        />
+        
+        {/* Recent Batches */}
+        <div className="mt-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Recent Batches</h2>
-            <Link 
-              href="/dashboard/batches" 
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-            >
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+              <Package className="h-6 w-6 text-gray-400 mr-2" />
+              Recent Batches
+            </h2>
+            <Link href="/dashboard/batches" className="text-blue-600 hover:text-blue-700 font-medium">
               View all
             </Link>
           </div>
           
           {recentBatches.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {recentBatches.map((batch) => (
                 <BatchCard 
                   key={batch.id}
@@ -158,18 +118,18 @@ export default async function DashboardHomePage() {
                   name={batch.name}
                   description={batch.description || ''}
                   booksCount={batch._count.books}
-                  greenCount={batch.greenCount}
-                  yellowCount={batch.yellowCount}
-                  redCount={batch.redCount}
+                  greenCount={batch.greenCount || 0}
+                  yellowCount={batch.yellowCount || 0}
+                  redCount={batch.redCount || 0}
                   updatedAt={batch.updatedAt}
                 />
               ))}
             </div>
           ) : (
-            <div className="text-center py-8">
+            <div className="text-center py-12">
               <Package className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No batches yet</h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <h3 className="mt-2 text-lg font-medium text-gray-900">No batches yet</h3>
+              <p className="mt-1 text-sm text-gray-500">
                 Get started by creating a new batch to organize your books.
               </p>
               <div className="mt-6">
@@ -184,7 +144,7 @@ export default async function DashboardHomePage() {
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

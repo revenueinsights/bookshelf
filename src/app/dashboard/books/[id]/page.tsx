@@ -19,7 +19,13 @@ import {
   BookOpen,
   Star,
   ShoppingCart,
-  BarChart3
+  BarChart3,
+  Sparkles,
+  Zap,
+  Target,
+  TrendingDown,
+  Crown,
+  Award
 } from 'lucide-react';
 
 interface Book {
@@ -110,41 +116,52 @@ export default function BookDetailsPage() {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [showPriceAlertModal, setShowPriceAlertModal] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [pageLoaded, setPageLoaded] = useState(false);
+  const [animateStats, setAnimateStats] = useState(false);
+  const [animateCards, setAnimateCards] = useState(false);
 
   useEffect(() => {
+    const fetchBookData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/books/${bookId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setBook(data);
+          
+          // Fetch additional data
+          if (data.isbn) {
+            await fetchBookScouterData(data.isbn);
+            await fetchGoogleBooksData(data.isbn);
+          }
+        } else {
+          toast.error('Failed to load book details');
+        }
+      } catch (error) {
+        console.error('Error fetching book:', error);
+        toast.error('Failed to load book details');
+      } finally {
+        setLoading(false);
+        // Trigger animations after data loads with proper delays
+        setTimeout(() => {
+          setPageLoaded(true);
+          console.log('Page loaded animation triggered');
+        }, 100);
+        setTimeout(() => {
+          setAnimateStats(true);
+          console.log('Stats animation triggered');
+        }, 800);
+        setTimeout(() => {
+          setAnimateCards(true);
+          console.log('Cards animation triggered');
+        }, 1200);
+      }
+    };
+
     if (bookId) {
-      fetchBookDetails();
+      fetchBookData();
     }
   }, [bookId]);
-
-  const fetchBookDetails = async () => {
-    try {
-      setLoading(true);
-      
-      // Fetch book from database
-      const bookResponse = await fetch(`/api/books/${bookId}`);
-      if (bookResponse.ok) {
-        const bookData = await bookResponse.json();
-        setBook(bookData);
-        
-        // Fetch latest BookScouter data
-        if (bookData.isbn) {
-          await fetchBookScouterData(bookData.isbn);
-        }
-        
-        // Fetch Google Books data
-        if (bookData.isbn) {
-          await fetchGoogleBooksData(bookData.isbn);
-        }
-      } else {
-        toast.error('Failed to fetch book details');
-      }
-    } catch (error) {
-      toast.error('Error loading book details');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchBookScouterData = async (isbn: string) => {
     try {
@@ -252,10 +269,41 @@ export default function BookDetailsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading book details...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <div className="text-center space-y-6">
+          {/* Animated Book Icon */}
+          <div className="relative">
+            <div className="animate-bounce animate-pulse">
+              <BookOpen className="h-24 w-24 text-blue-600 mx-auto" />
+            </div>
+            <div className="absolute -top-2 -right-2">
+              <Sparkles className="h-8 w-8 text-yellow-500 animate-bounce" />
+            </div>
+            <div className="absolute -bottom-2 -left-2">
+              <Star className="h-6 w-6 text-pink-500 animate-pulse" />
+            </div>
+          </div>
+          
+          {/* Loading Text with Typing Effect */}
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent animate-pulse">
+              Loading Book Details
+            </h2>
+            <div className="flex justify-center space-x-1">
+              <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
+              <div className="w-3 h-3 bg-purple-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+              <div className="w-3 h-3 bg-pink-600 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+              <div className="w-3 h-3 bg-yellow-500 rounded-full animate-bounce" style={{animationDelay: '0.6s'}}></div>
+            </div>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="w-64 bg-gray-200 rounded-full h-3 mx-auto">
+            <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 h-3 rounded-full animate-pulse animate-bounce"></div>
+          </div>
+          
+          {/* Loading Text */}
+          <p className="text-gray-600 animate-pulse">Please wait while we fetch your book details...</p>
         </div>
       </div>
     );
@@ -263,34 +311,48 @@ export default function BookDetailsPage() {
 
   if (!book) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Book Not Found</h1>
-          <p className="text-gray-600 mb-4">The book you're looking for doesn't exist.</p>
-          <Button onClick={() => window.history.back()}>Go Back</Button>
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-pulse">
+            <BookOpen className="h-16 w-16 text-red-500 mx-auto" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800">Book Not Found</h2>
+          <p className="text-gray-600">The book you're looking for doesn't exist</p>
+          <Button onClick={handleBackToBooks} className="mt-4">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Books
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
+    <div className={`min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 py-8 transition-all duration-1500 ease-out ${pageLoaded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-8'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        <div className={`bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden transform transition-all duration-1500 ease-out ${pageLoaded ? 'translate-y-0 opacity-100 scale-100 rotate-0' : 'translate-y-16 opacity-0 scale-90 rotate-2'}`}>
           {/* Header with gradient background */}
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-6">
+          <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 py-6 relative overflow-hidden">
+            {/* Animated Background Elements */}
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-4 left-4 w-20 h-20 bg-white rounded-full animate-pulse animate-bounce animate-spin"></div>
+              <div className="absolute top-12 right-8 w-16 h-16 bg-white rounded-full animate-pulse animate-bounce animate-spin" style={{animationDelay: '1s'}}></div>
+              <div className="absolute bottom-8 left-12 w-12 h-12 bg-white rounded-full animate-pulse animate-bounce animate-spin" style={{animationDelay: '2s'}}></div>
+              <div className="absolute top-1/2 left-1/4 w-8 h-8 bg-white rounded-full animate-pulse animate-bounce" style={{animationDelay: '0.5s'}}></div>
+              <div className="absolute bottom-1/4 right-1/4 w-10 h-10 bg-white rounded-full animate-pulse animate-bounce" style={{animationDelay: '1.5s'}}></div>
+            </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <button
                   onClick={handleBackToBooks}
-                  className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
+                  className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-all duration-300 text-white hover:scale-110 transform animate-pulse animate-bounce"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </button>
                 <div>
-                  <h1 className="text-3xl font-bold text-white">{book.title}</h1>
-                  <p className="text-blue-100 mt-1 flex items-center">
+                  <h1 className="text-3xl font-bold text-white drop-shadow-lg animate-pulse animate-bounce">{book.title}</h1>
+                  <p className="text-blue-100 mt-1 flex items-center drop-shadow-md">
                     <User className="h-4 w-4 mr-2" />
                     by {book.authors.join(', ')}
                   </p>
@@ -300,7 +362,7 @@ export default function BookDetailsPage() {
                 <Button
                   onClick={refreshPrices}
                   disabled={refreshingPrices}
-                  className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/30 hover:scale-105 transition-all duration-300 animate-pulse animate-bounce"
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${refreshingPrices ? 'animate-spin' : ''}`} />
                   {refreshingPrices ? 'Refreshing...' : 'Refresh Prices'}
@@ -310,23 +372,29 @@ export default function BookDetailsPage() {
           </div>
           
           {/* Quick stats bar */}
-          <div className="px-8 py-4 bg-gray-50 border-b border-gray-200">
+          <div className={`px-8 py-4 bg-gray-50 border-b border-gray-200 transition-all duration-1500 ease-out ${animateStats ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-95'}`}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
+              <div className="text-center transform hover:scale-105 transition-all duration-300 animate-pulse animate-bounce">
                 <p className="text-sm font-medium text-gray-500">Current Price</p>
-                <p className="text-xl font-bold text-green-600">${book.currentPrice}</p>
+                <div className="flex items-center justify-center space-x-1">
+                  <DollarSign className="h-5 w-5 text-green-600" />
+                  <p className="text-xl font-bold text-green-600">${book.currentPrice}</p>
+                </div>
               </div>
-              <div className="text-center">
+              <div className="text-center transform hover:scale-105 transition-all duration-300 animate-pulse animate-bounce">
                 <p className="text-sm font-medium text-gray-500">Historical High</p>
-                <p className="text-xl font-bold text-blue-600">${book.historicalHigh}</p>
+                <div className="flex items-center justify-center space-x-1">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                  <p className="text-xl font-bold text-blue-600">${book.historicalHigh}</p>
+                </div>
               </div>
-              <div className="text-center">
+              <div className="text-center transform hover:scale-105 transition-all duration-300 animate-pulse animate-bounce">
                 <p className="text-sm font-medium text-gray-500">Price Rank</p>
                 <Badge color={book.priceRank === 'GREEN' ? 'success' : book.priceRank === 'YELLOW' ? 'warning' : 'error'}>
                   {book.priceRank}
                 </Badge>
               </div>
-              <div className="text-center">
+              <div className="text-center transform hover:scale-105 transition-all duration-300 animate-pulse animate-bounce">
                 <p className="text-sm font-medium text-gray-500">Best Vendor</p>
                 <p className="text-sm font-semibold text-gray-900">{book.bestVendorName || 'Unknown'}</p>
               </div>
@@ -334,13 +402,16 @@ export default function BookDetailsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className={`grid grid-cols-1 lg:grid-cols-4 gap-8 transition-all duration-1500 ease-out ${animateCards ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-12 scale-95'}`}>
           {/* Left Column - Book Info */}
           <div className="lg:col-span-3 space-y-6">
             {/* Basic Book Information */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl animate-pulse animate-bounce">
               <div className="flex items-center mb-6">
-                <BookOpen className="h-6 w-6 text-blue-600 mr-3" />
+                <div className="relative">
+                  <BookOpen className="h-6 w-6 text-blue-600 mr-3 animate-bounce animate-pulse" />
+                  <Sparkles className="h-4 w-4 text-yellow-500 absolute -top-1 -right-1 animate-pulse animate-bounce" />
+                </div>
                 <h2 className="text-xl font-semibold text-gray-900">Book Information</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -367,7 +438,7 @@ export default function BookDetailsPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-500">Batch</p>
                   <div className="flex items-center space-x-2">
-                    <FolderPlus className="h-4 w-4 text-gray-400" />
+                    <FolderPlus className="h-4 w-4 text-gray-400 animate-bounce animate-pulse" />
                     <span className="text-sm text-gray-900">
                       {book.batch?.name || 'No batch assigned'}
                     </span>
@@ -377,7 +448,7 @@ export default function BookDetailsPage() {
                   <div>
                     <p className="text-sm font-medium text-gray-500">Purchase Price</p>
                     <div className="flex items-center space-x-2">
-                      <DollarSign className="h-4 w-4 text-green-600" />
+                      <DollarSign className="h-4 w-4 text-green-600 animate-bounce animate-pulse" />
                       <span className="text-sm font-semibold text-gray-900">${book.purchasePrice}</span>
                     </div>
                   </div>
@@ -385,7 +456,7 @@ export default function BookDetailsPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-500">Added to Inventory</p>
                   <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <Calendar className="h-4 w-4 text-gray-400 animate-bounce animate-pulse" />
                     <span className="text-sm text-gray-900">
                       {new Date(book.createdAt).toLocaleDateString()}
                     </span>
@@ -393,7 +464,7 @@ export default function BookDetailsPage() {
                 </div>
               </div>
               {book.notes && (
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border border-gray-200 transform hover:scale-[1.02] transition-all duration-300 animate-pulse animate-bounce">
                   <p className="text-sm font-medium text-gray-500">Notes</p>
                   <p className="text-sm text-gray-900 mt-1">{book.notes}</p>
                 </div>
@@ -401,43 +472,46 @@ export default function BookDetailsPage() {
             </div>
 
             {/* Pricing Information */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl animate-pulse animate-bounce">
               <div className="flex items-center mb-6">
-                <DollarSign className="h-6 w-6 text-green-600 mr-3" />
+                <div className="relative">
+                  <DollarSign className="h-6 w-6 text-green-600 mr-3 animate-pulse animate-bounce" />
+                  <Sparkles className="h-4 w-4 text-yellow-500 absolute -top-1 -right-1 animate-pulse animate-bounce" />
+                </div>
                 <h2 className="text-xl font-semibold text-gray-900">Pricing Information</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+                <div className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg animate-pulse animate-bounce">
                   <p className="text-sm font-medium text-gray-500">Current Price</p>
                   <p className="text-2xl font-bold text-green-600">
                     ${book.currentPrice}
                   </p>
                 </div>
-                <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg animate-pulse animate-bounce">
                   <p className="text-sm font-medium text-gray-500">Historical High</p>
                   <p className="text-2xl font-bold text-blue-600">
                     ${book.historicalHigh}
                   </p>
                 </div>
-                <div className="text-center p-6 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200">
+                <div className="text-center p-6 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg animate-pulse animate-bounce">
                   <p className="text-sm font-medium text-gray-500">% of High</p>
                   <p className="text-2xl font-bold text-orange-600">
                     {book.percentOfHigh}%
                   </p>
                 </div>
-                <div className="text-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                <div className="text-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg animate-pulse animate-bounce">
                   <p className="text-sm font-medium text-gray-500">Price Rank</p>
                   <Badge color={book.priceRank === 'GREEN' ? 'success' : book.priceRank === 'YELLOW' ? 'warning' : 'error'}>
                     {book.priceRank}
                   </Badge>
                 </div>
-                <div className="text-center p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl border border-indigo-200">
+                <div className="text-center p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl border border-indigo-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg animate-pulse animate-bounce">
                   <p className="text-sm font-medium text-gray-500">Amazon Price</p>
                   <p className="text-lg font-semibold text-purple-600">
                     ${book.amazonPrice || 'N/A'}
                   </p>
                 </div>
-                <div className="text-center p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                <div className="text-center p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg animate-pulse animate-bounce">
                   <p className="text-sm font-medium text-gray-500">Best Vendor</p>
                   <p className="text-sm font-semibold text-gray-900">
                     {book.bestVendorName || 'Unknown'}
@@ -446,7 +520,7 @@ export default function BookDetailsPage() {
               </div>
               
               {/* Last Updated */}
-              <div className="mt-6 text-center p-4 bg-gray-50 rounded-lg">
+              <div className="mt-6 text-center p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border border-gray-200 transform hover:scale-[1.02] transition-all duration-300 animate-pulse animate-bounce">
                 <p className="text-sm text-gray-500">
                   Last price update: {new Date(book.lastPriceUpdate).toLocaleString()}
                 </p>
@@ -566,36 +640,39 @@ export default function BookDetailsPage() {
           {/* Right Column - Quick Actions & Stats */}
           <div className="space-y-6">
             {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl">
               <div className="flex items-center mb-6">
-                <BarChart3 className="h-6 w-6 text-purple-600 mr-3" />
+                <div className="relative">
+                  <BarChart3 className="h-6 w-6 text-purple-600 mr-3 animate-pulse" />
+                  <Sparkles className="h-4 w-4 text-yellow-500 absolute -top-1 -right-1 animate-bounce" />
+                </div>
                 <h2 className="text-xl font-semibold text-gray-900">Quick Actions</h2>
               </div>
               <div className="space-y-3">
                 <Button 
                   onClick={handleEditBook}
-                  className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                 >
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Book
                 </Button>
                 <Button 
                   onClick={handleViewPriceHistory}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                 >
                   <TrendingUp className="h-4 w-4 mr-2" />
                   View Price History
                 </Button>
                 <Button 
                   onClick={handleSetPriceAlert}
-                  className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                 >
                   <Bell className="h-4 w-4 mr-2" />
                   Set Price Alert
                 </Button>
                 <Button 
                   onClick={handleAddToBatch}
-                  className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                 >
                   <FolderPlus className="h-4 w-4 mr-2" />
                   Add to Batch
@@ -604,30 +681,33 @@ export default function BookDetailsPage() {
             </div>
 
             {/* Statistics */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl">
               <div className="flex items-center mb-6">
-                <ShoppingCart className="h-6 w-6 text-indigo-600 mr-3" />
+                <div className="relative">
+                  <ShoppingCart className="h-6 w-6 text-indigo-600 mr-3 animate-pulse" />
+                  <Sparkles className="h-4 w-4 text-yellow-500 absolute -top-1 -right-1 animate-bounce" />
+                </div>
                 <h2 className="text-xl font-semibold text-gray-900">Quote Statistics</h2>
               </div>
               <div className="space-y-4">
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg border border-blue-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg">
                   <p className="text-sm font-medium text-gray-500">Total Quotes</p>
                   <p className="text-2xl font-bold text-gray-900">{book.totalQuotes}</p>
                 </div>
-                <div className="p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-lg border border-green-200">
+                <div className="p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-lg border border-green-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg">
                   <p className="text-sm font-medium text-gray-500">Best Quote Price</p>
                   <p className="text-2xl font-bold text-green-600">
                     ${book.bestQuotePrice || 'N/A'}
                   </p>
                 </div>
-                <div className="p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+                <div className="p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg border border-purple-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg">
                   <p className="text-sm font-medium text-gray-500">Best Quote Vendor</p>
                   <p className="text-sm font-semibold text-gray-900">
                     {book.bestQuoteVendor || 'Unknown'}
                   </p>
                 </div>
                 {book.sellRecommendation && (
-                  <div className="p-4 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-lg border border-yellow-200">
+                  <div className="p-4 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-lg border border-yellow-200 transform hover:scale-105 transition-all duration-300 hover:shadow-lg">
                     <p className="text-sm font-medium text-gray-500">Sell Recommendation</p>
                     <Badge color="warning">
                       {book.sellRecommendation}
@@ -638,14 +718,17 @@ export default function BookDetailsPage() {
             </div>
 
             {/* Price History Chart Placeholder */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl">
               <div className="flex items-center mb-6">
-                <TrendingUp className="h-6 w-6 text-green-600 mr-3" />
+                <div className="relative">
+                  <TrendingUp className="h-6 w-6 text-green-600 mr-3 animate-pulse" />
+                  <Sparkles className="h-4 w-4 text-yellow-500 absolute -top-1 -right-1 animate-bounce" />
+                </div>
                 <h2 className="text-xl font-semibold text-gray-900">Price History</h2>
               </div>
-              <div className="h-48 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center">
+              <div className="h-48 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center transform hover:scale-105 transition-all duration-300">
                 <div className="text-center">
-                  <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                  <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-2 animate-pulse" />
                   <p className="text-gray-500 font-medium">Price history chart coming soon...</p>
                   <p className="text-sm text-gray-400 mt-1">Interactive charts and analytics</p>
                 </div>
