@@ -45,6 +45,9 @@ interface Book {
     thumbnailUrl?: string | null;
     imageUrl?: string | null;
   } | null;
+  googlePrice?: number | null;
+  googlePriceCurrency?: string | null;
+  googlePriceAvailability?: string | null;
 }
 
 interface Batch {
@@ -145,11 +148,56 @@ export default function BookInventoryPage() {
       const data = await response.json();
       setBooks(data.books);
       setPagination(data.pagination);
+      
+      // Fetch Google Books prices for the loaded books
+      await fetchGoogleBooksPrices(data.books);
     } catch (err) {
       console.error('Error fetching books:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch books');
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Fetch Google Books prices for books
+  const fetchGoogleBooksPrices = async (booksToFetch: Book[]) => {
+    try {
+      const bookIds = booksToFetch
+        .filter(book => book.isbn || book.isbn13)
+        .map(book => book.id);
+      
+      if (bookIds.length === 0) return;
+      
+      const response = await fetch('/api/books/google-prices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bookIds }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update books with Google prices
+        setBooks(prevBooks => 
+          prevBooks.map(book => {
+            const googlePriceData = data.results.find((result: any) => result.bookId === book.id);
+            if (googlePriceData) {
+              return {
+                ...book,
+                googlePrice: googlePriceData.googlePrice,
+                googlePriceCurrency: googlePriceData.currency,
+                googlePriceAvailability: googlePriceData.availability,
+              };
+            }
+            return book;
+          })
+        );
+      }
+    } catch (error) {
+      console.error('Error fetching Google Books prices:', error);
+      // Don't show error to user as this is optional
     }
   };
   
@@ -301,6 +349,54 @@ export default function BookInventoryPage() {
     }
   };
 
+  const refreshGoogleBooksPrices = async () => {
+    try {
+      const bookIds = books
+        .filter(book => book.isbn || book.isbn13)
+        .map(book => book.id);
+      
+      if (bookIds.length === 0) {
+        toast.error('No books with ISBN found');
+        return;
+      }
+      
+      toast.loading('Refreshing Google Books prices...');
+      
+      const response = await fetch('/api/books/google-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookIds }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update books with new Google prices
+        setBooks(prevBooks => 
+          prevBooks.map(book => {
+            const googlePriceData = data.results.find((result: any) => result.bookId === book.id);
+            if (googlePriceData) {
+              return {
+                ...book,
+                googlePrice: googlePriceData.googlePrice,
+                googlePriceCurrency: googlePriceData.currency,
+                googlePriceAvailability: googlePriceData.availability,
+              };
+            }
+            return book;
+          })
+        );
+        
+        toast.success('Google Books prices refreshed!');
+      } else {
+        toast.error('Failed to refresh Google Books prices');
+      }
+    } catch (error) {
+      console.error('Error refreshing Google Books prices:', error);
+      toast.error('Error refreshing Google Books prices');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
@@ -363,6 +459,14 @@ export default function BookInventoryPage() {
   </div>
           
           <div className="flex items-center space-x-2">
+            <button
+              onClick={refreshGoogleBooksPrices}
+              className="inline-flex items-center px-3 py-2 border border-green-500 text-sm font-medium rounded-md text-green-600 dark:text-green-400 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh Google Prices
+            </button>
+            
             {selectedBooks.length > 0 && (
               <button
                 onClick={deleteSelectedBooks}
@@ -574,7 +678,10 @@ export default function BookInventoryPage() {
                     Book
                   </th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Current Price
+                    Buyback Price
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Google Books Price
                   </th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Historical High
@@ -656,6 +763,29 @@ export default function BookInventoryPage() {
                       <div className="text-sm text-gray-900 dark:text-white">{formatCurrency(book.currentPrice)}</div>
                       {book.bestVendorName && (
                         <div className="text-xs text-gray-500 dark:text-gray-400">{book.bestVendorName}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      {book.googlePrice !== null && book.googlePrice !== undefined ? (
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {book.googlePrice === 0 ? 'Free' : formatCurrency(book.googlePrice)}
+                        </div>
+                      ) : book.googlePriceAvailability === 'unavailable' ? (
+                        <div className="text-sm text-gray-500 dark:text-gray-400">No pricing data</div>
+                      ) : book.googlePriceAvailability === 'not_for_sale' ? (
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Not for sale</div>
+                      ) : book.googlePriceAvailability === 'free' ? (
+                        <div className="text-sm text-green-600 dark:text-green-400">Free</div>
+                      ) : book.googlePriceAvailability === 'error' ? (
+                        <div className="text-sm text-red-500 dark:text-red-400">API Error</div>
+                      ) : (
+                        <div className="text-sm text-gray-400 dark:text-gray-500">Loading...</div>
+                      )}
+                      {book.googlePriceAvailability === 'available' && (
+                        <div className="text-xs text-green-600 dark:text-green-400">Google Books</div>
+                      )}
+                      {book.googlePriceAvailability === 'free' && (
+                        <div className="text-xs text-green-600 dark:text-green-400">Free on Google</div>
                       )}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
